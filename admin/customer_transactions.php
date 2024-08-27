@@ -18,31 +18,71 @@ $userId = $_GET['id'];
 $userMail = '';
 $userName = '';
 
-// Get user data using id from URL
-$databaseObj = new DatabaseConnection();
-$database_conn = $databaseObj->connectToDB();
-$errors = [];
+$dbType = require_once '../config/db_type.php';
 
-$getUserSql = "SELECT email, name FROM users WHERE id = '$userId'";
-if (!mysqli_query($database_conn, $getUserSql)) {
-  $errors['auth-error'] = 'Something went wrong!';
-} else {
-  $result = mysqli_query($database_conn, $getUserSql);
-  $data = mysqli_fetch_assoc($result);
-  $userMail = $data['email'];
-  $userName = $data['name'];
-}
+if ($dbType === 'sql') {
+  // Get user data using id from URL
+  $databaseObj = new DatabaseConnection();
+  $database_conn = $databaseObj->connectToDB();
+  $errors = [];
 
-// Get all the transactions of the user whose id is given in URL
-$getUserTransactionSql = "SELECT * FROM transactions WHERE sender_email = '$userMail' OR receiver_email = '$userMail'";
-if (!mysqli_query($database_conn, $getUserTransactionSql)) {
-  $errors['auth-error'] = 'Something went wrong!';
+  $getUserSql = "SELECT email, name FROM users WHERE id = '$userId'";
+  if (!mysqli_query($database_conn, $getUserSql)) {
+    $errors['auth-error'] = 'Something went wrong!';
+  } else {
+    $result = mysqli_query($database_conn, $getUserSql);
+    $data = mysqli_fetch_assoc($result);
+    $userMail = $data['email'];
+    $userName = $data['name'];
+  }
+
+  // Get all the transactions of the user whose id is given in URL
+  $getUserTransactionSql = "SELECT * FROM transactions WHERE sender_email = '$userMail' OR receiver_email = '$userMail'";
+  if (!mysqli_query($database_conn, $getUserTransactionSql)) {
+    $errors['auth-error'] = 'Something went wrong!';
+  } else {
+    $result = mysqli_query($database_conn, $getUserTransactionSql);
+    $userTransactionInfo = [];
+
+    while ($row = mysqli_fetch_assoc($result)) {
+      $userTransactionInfo[] = $row;
+    }
+  }
 } else {
-  $result = mysqli_query($database_conn, $getUserTransactionSql);
+  // Open file to read data
+  $fileName = '../data/users.txt';
+  $myFile = fopen($fileName, 'r') or die('Unable to open file!');
+  $allUsers = file($fileName);
+
+  fclose($myFile);
+
+  foreach ($allUsers as $user) {
+    $userData = explode(",", $user);
+
+    // Find the user whose id is provided into url
+    if ($userData[0] === $userId) {
+      $userMail = $userData[2];
+      $userName = $userData[1];
+      break;
+    }
+  }
+
+  // Get all the transactions of the logged in user
+  $fileName = '../data/transactions.txt';
+  $myFile = fopen($fileName, 'r') or die('Unable to open file!');
+  $allTransactions = file($fileName);
+
+  fclose($myFile);
+
   $userTransactionInfo = [];
+  $index = 0;
 
-  while ($row = mysqli_fetch_assoc($result)) {
-    $userTransactionInfo[] = $row;
+  foreach ($allTransactions as $transaction) {
+    $transactionInfo = explode(",", $transaction);
+
+    if ($userMail === $transactionInfo[0]) {
+      $userTransactionInfo[$index++] = $transactionInfo;
+    }
   }
 }
 
@@ -344,32 +384,56 @@ if (!mysqli_query($database_conn, $getUserTransactionSql)) {
                       <tbody class="divide-y divide-gray-200 bg-white">
                         <?php foreach ($userTransactionInfo as $info) { ?>
 
-                          <tr>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                              <?= $info['sender_email']; ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                              <?= $info['sender_name']; ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                              <?= $info['receiver_email']; ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
-                              <?= $info['transfer_type']; ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
-                              <?= $info['transfer_amount']; ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
-                              <?= $info['transfer_time']; ?>
-                            </td>
-                          </tr>
+                          <?php if ($dbType === 'sql') { ?>
+                            <tr>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                <?= $info['sender_email']; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                <?= $info['sender_name']; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                <?= $info['receiver_email']; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                <?= $info['transfer_type']; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                <?= $info['transfer_amount']; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                <?= $info['transfer_time']; ?>
+                              </td>
+                            </tr>
+                          <?php }?>
+
+                          <?php if ($dbType === 'file') { ?>
+                            <tr>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                <?= $info[2]; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                <?= $info[3]; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                <?= $info[4]; ?>
+                              </td>
+                              <td
+                                class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                <?= $info[5]; ?>
+                              </td>
+                            </tr>
+                          <?php }?>
+                          
 
                         <?php } ?>
                       </tbody>

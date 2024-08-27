@@ -10,24 +10,43 @@ function sanitize(string $value)
 /*
 * Get current balance
 */
-function getCurrentBalanceOfLoggedInUser(): ?float
+function getCurrentBalanceOfLoggedInUser($databaseType): ?float
 {
     require_once '../database/connection.php';
-
-    $databaseObj = new DatabaseConnection();
-    $database_conn = $databaseObj->connectToDB();
     $userEmail = $_SESSION['useremail'];
-    $errors = [];
 
-    $getUserSql = "SELECT balance FROM users WHERE email = '$userEmail'";
-    if (!mysqli_query($database_conn, $getUserSql)) {
-        $errors['auth-error'] = 'Something went wrong!';
-        return 0.0;
+    if ($databaseType === 'sql') {
+        $databaseObj = new DatabaseConnection();
+        $database_conn = $databaseObj->connectToDB();
+        $errors = [];
+    
+        $getUserSql = "SELECT balance FROM users WHERE email = '$userEmail'";
+        if (!mysqli_query($database_conn, $getUserSql)) {
+            $errors['auth-error'] = 'Something went wrong!';
+            return 0.0;
+        } else {
+            $result = mysqli_query($database_conn, $getUserSql);
+            $data = mysqli_fetch_assoc($result);
+    
+            return floatval($data['balance']);
+        }
     } else {
-        $result = mysqli_query($database_conn, $getUserSql);
-        $data = mysqli_fetch_assoc($result);
+        // Read data from file
+        $fileName = "../data/balances.txt";
+        $myFile = fopen($fileName, "r") or die('Unable to open file');
+        $balances = file($fileName, FILE_IGNORE_NEW_LINES);
 
-        return floatval($data['balance']);
+        foreach ($balances as $balance) {
+        $balanceInfo = explode(",", $balance);
+
+        if ($balanceInfo[1] == $userEmail) {
+            $currentBalance = floatval($balanceInfo[2]);
+            break;
+        }
+        }
+        fclose($myFile);
+
+        return $currentBalance;
     }
 }
 

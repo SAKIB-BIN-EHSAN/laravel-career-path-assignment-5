@@ -10,26 +10,48 @@ if (!isset($_SESSION['user_id'])) {
   exit;
 } else {
   $errors = [];
-  $currentBalance = getCurrentBalanceOfLoggedInUser();
-  $databaseObj = new DatabaseConnection();
-  $database_conn = $databaseObj->connectToDB();
+  $dbType = require_once '../config/db_type.php';
+  $currentBalance = getCurrentBalanceOfLoggedInUser($dbType);
 
-  /* Logic for getting all the transactions of the logged-in user starts */
-  $userEmail = $_SESSION['useremail'];
-  $getTransactionsSql = "SELECT * FROM transactions WHERE sender_email = '$userEmail' OR receiver_email = '$userEmail'";
-
-  if (!mysqli_query($database_conn, $getTransactionsSql)) {
-    $errors['auth-error'] = 'Something went wrong!';
+  if ($dbType === 'sql') {
+    $databaseObj = new DatabaseConnection();
+    $database_conn = $databaseObj->connectToDB();
+  
+    /* Logic for getting all the transactions of the logged-in user starts */
+    $userEmail = $_SESSION['useremail'];
+    $getTransactionsSql = "SELECT * FROM transactions WHERE sender_email = '$userEmail' OR receiver_email = '$userEmail'";
+  
+    if (!mysqli_query($database_conn, $getTransactionsSql)) {
+      $errors['auth-error'] = 'Something went wrong!';
+    } else {
+      $result = mysqli_query($database_conn, $getTransactionsSql);
+  
+      $ownTransactions = [];
+      while($row = mysqli_fetch_assoc($result)) {
+        $ownTransactions[] = $row;
+      }
+    }
+    /* Logic for getting all the transactions of the logged-in user ends */
   } else {
-    $result = mysqli_query($database_conn, $getTransactionsSql);
+    /* Logic for getting all the transactions of the logged-in user starts */
+    $fileName = '../data/transactions.txt';
+    $transactionDataFile = fopen($fileName, "r") or die('Unable to open file!');
+    $transactions = file($fileName, FILE_IGNORE_NEW_LINES);
+    fclose($transactionDataFile);
 
     $ownTransactions = [];
-    while($row = mysqli_fetch_assoc($result)) {
-      $ownTransactions[] = $row;
+    $key = 0;
+
+    foreach ($transactions as $transaction) {
+      $transactionInfo = explode(",", $transaction);
+
+      if ($transactionInfo[0] == $_SESSION['useremail']) {
+        $ownTransactions[$key++] = $transactionInfo;
+      }
     }
+    /* Logic for getting all the transactions of the logged-in user ends */
   }
 }
-/* Logic for getting all the transactions of the logged-in user ends */
 
 ?>
 
@@ -412,44 +434,80 @@ if (!isset($_SESSION['user_id'])) {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
 
-                        <?php 
-                          foreach ($ownTransactions as $ownTransaction) {
-                        ?>
+                          <?php foreach ($ownTransactions as $ownTransaction) { ?>
 
-                          <tr>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                              <?= $ownTransaction['sender_email'] ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
-                              <?= $ownTransaction['sender_name'] ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
-                              <?= $ownTransaction['receiver_email'] ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
-                              <?= $ownTransaction['transfer_type'] ?>
-                            </td>
-                            <td
-                              class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
-                              <?php if ($ownTransaction['transfer_type'] === "Withdraw" || $ownTransaction['transfer_type'] === "Transfer") { ?>
-                                -<?= "$" . number_format($ownTransaction['transfer_amount'], 2, ".", ",") ?>
-                              <?php } ?>
-                              <?php if ($ownTransaction['transfer_type'] === "Deposit") { ?>
-                                +<?= "$" . number_format($ownTransaction['transfer_amount'], 2, ".", ",") ?>
-                              <?php } ?>
-                              
-                            </td>
-                            <td
-                              class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
-                              <?= $ownTransaction['transfer_time'] ?>
-                            </td>
-                          </tr>
+                            <?php if ($dbType === 'sql') { ?>
+                              <tr>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $ownTransaction['sender_email'] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction['sender_name'] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction['receiver_email'] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction['transfer_type'] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                  <?php if ($ownTransaction['transfer_type'] === "Withdraw" || $ownTransaction['transfer_type'] === "Transfer") { ?>
+                                    -<?= "$" . number_format($ownTransaction['transfer_amount'], 2, ".", ",") ?>
+                                  <?php } ?>
+                                  <?php if ($ownTransaction['transfer_type'] === "Deposit") { ?>
+                                    +<?= "$" . number_format($ownTransaction['transfer_amount'], 2, ".", ",") ?>
+                                  <?php } ?>
+                                  
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                  <?= $ownTransaction['transfer_time'] ?>
+                                </td>
+                              </tr>
+                            <?php } ?>
 
-                        <?php } ?>
+                            <?php if ($dbType === 'file') { ?>
+                              <tr>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $ownTransaction[0] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction[1] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction[2] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-0">
+                                  <?= $ownTransaction[3] ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                  <?php if ($ownTransaction[3] == "Withdraw" || $ownTransaction[3] == "Transfer") { ?>
+                                    -<?= "$" . number_format($ownTransaction[4], 2, ".", ",") ?>
+                                  <?php } ?>
+                                  <?php if ($ownTransaction[3] == "Deposit") { ?>
+                                    +<?= "$" . number_format($ownTransaction[4], 2, ".", ",") ?>
+                                  <?php } ?>
+                                  
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                  <?= $ownTransaction[5] ?>
+                                </td>
+                              </tr>
+                            <?php } ?>
+
+                          <?php } ?>
+
                         </tbody>
                       </table>
                     </div>

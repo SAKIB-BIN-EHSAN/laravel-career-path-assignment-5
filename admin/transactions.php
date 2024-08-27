@@ -13,20 +13,39 @@ if (!isset($_SESSION['user_id'])) {
   exit;
 }
 
-// Get all transactions
-$databaseObj = new DatabaseConnection();
-$database_conn = $databaseObj->connectToDB();
+$dbType = require_once '../config/db_type.php';
 
-$getTransactionsSql = "SELECT * FROM transactions";
+if ($dbType === 'sql') {
+  // Get all transactions
+  $databaseObj = new DatabaseConnection();
+  $database_conn = $databaseObj->connectToDB();
 
-if (!mysqli_query($database_conn, $getTransactionsSql)) {
-  $errors['auth-error'] = 'Something went wrong!';
+  $getTransactionsSql = "SELECT * FROM transactions";
+
+  if (!mysqli_query($database_conn, $getTransactionsSql)) {
+    $errors['auth-error'] = 'Something went wrong!';
+  } else {
+    $result = mysqli_query($database_conn, $getTransactionsSql);
+
+    $allTransactions = [];
+    while($row = mysqli_fetch_assoc($result)) {
+      $allTransactions[] = $row;
+    }
+  }
 } else {
-  $result = mysqli_query($database_conn, $getTransactionsSql);
+  // Get all transactions
+  $fileName = '../data/transactions.txt';
+  $myFile = fopen($fileName, 'r') or die('Unable to open file!');
+  $transactions = file($fileName); // Get all the data
+
+  fclose($myFile);
 
   $allTransactions = [];
-  while($row = mysqli_fetch_assoc($result)) {
-    $allTransactions[] = $row;
+
+  // Process the file data and store into an array
+  foreach ($transactions as $transaction) {
+    $transactionInfo = explode(",", $transaction);
+    $allTransactions[] = $transactionInfo;
   }
 }
 
@@ -322,32 +341,66 @@ if (!mysqli_query($database_conn, $getTransactionsSql)) {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                           <?php foreach($allTransactions as $transaction) { ?>
-                            <tr>
-                              <td
-                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                                <?= $transaction['sender_name']; ?>
-                              </td>
-                              <td
-                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                                <?= $transaction['sender_email']; ?>
-                              </td>
-                              <td
-                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                                <?= $transaction['receiver_email']; ?>
-                              </td>
-                              <td
-                                class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
-                                <?= $transaction['transfer_type']; ?>
-                              </td>
-                              <td
-                                class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
-                                <?= $transaction['transfer_amount']; ?>
-                              </td>
-                              <td
-                                class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
-                                <?= $transaction['transfer_time']; ?>
-                              </td>
-                            </tr>
+
+                            <?php if ($dbType === 'sql') { ?>
+                              <tr>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction['sender_name']; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction['sender_email']; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction['receiver_email']; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction['transfer_type']; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                  <?= $transaction['transfer_amount']; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                  <?= $transaction['transfer_time']; ?>
+                                </td>
+                              </tr>
+                            <?php } ?>
+
+                            <?php if ($dbType === 'file') { ?>
+                              <tr>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction[1]; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction[0]; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction[2]; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-800 sm:pl-0">
+                                  <?= $transaction[3]; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm font-medium text-emerald-600">
+                                  <?= $transaction[4]; ?>
+                                </td>
+                                <td
+                                  class="whitespace-nowrap px-2 py-4 text-sm text-gray-500">
+                                  <?= $transaction[5]; ?>
+                                </td>
+                              </tr>
+                            <?php } ?>
+                            
+                            
                           <?php } ?>
                         </tbody>
                       </table>

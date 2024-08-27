@@ -79,28 +79,44 @@ class Customer {
 
     public function storeData()
     {
-        $dbObj = new DatabaseConnection();
-        $database_conn = $dbObj->connectToDB();
+        $dbType = require_once '../config/db_type.php';
 
-        $userId = uniqid();
+        if ($dbType === 'sql') {
+            $dbObj = new DatabaseConnection();
+            $database_conn = $dbObj->connectToDB();
+    
+            $userId = uniqid();
+    
+            $this->name = mysqli_real_escape_string($database_conn, $this->name);
+            $this->email = mysqli_real_escape_string($database_conn, $this->email);
+            $this->password = mysqli_real_escape_string($database_conn, $this->password);
+            $this->password = password_hash($this->password, PASSWORD_DEFAULT);
+    
+            if ($this->email === 'admin@admin.com') {
+                $this->role = 'Admin';
+            }
+    
+            $sql = "INSERT INTO users (id, name, email, password, role, balance) VALUES ('$userId', '$this->name', '$this->email', '$this->password', '$this->role', '0.0')";
+    
+            if (!mysqli_query($database_conn, $sql)) {
+                // echo "Error: " . $sql . "<br>" . mysqli_error($database_conn);
+                $this->errors['auth-error'] = 'Something went wrong!';
+            }
+              
+            mysqli_close($database_conn);
+        } else {
+            $userId = uniqid();
+            $myFile = fopen('../data/users.txt', 'a') or die('Unable to open file!');
+            $userData = $userId . ',' . $this->name . ',' . $this->email . ',' . password_hash($this->password, PASSWORD_DEFAULT) . ',' . $this->role . PHP_EOL;
+            fwrite($myFile, $userData);
+            fclose($myFile);
 
-        $this->name = mysqli_real_escape_string($database_conn, $this->name);
-        $this->email = mysqli_real_escape_string($database_conn, $this->email);
-        $this->password = mysqli_real_escape_string($database_conn, $this->password);
-        $this->password = password_hash($this->password, PASSWORD_DEFAULT);
-
-        if ($this->email === 'admin@admin.com') {
-            $this->role = 'Admin';
+            // Create an entry with zero balance associated with the user
+            $myBalanceFile = fopen('../data/balances.txt', 'a') or die('Unable to open file!');
+            $balanceData = $userId . ',' . $this->email . ',0.0'. PHP_EOL;
+            fwrite($myBalanceFile, $balanceData);
+            fclose($myBalanceFile);
         }
-
-        $sql = "INSERT INTO users (id, name, email, password, role, balance) VALUES ('$userId', '$this->name', '$this->email', '$this->password', '$this->role', '0.0')";
-
-        if (!mysqli_query($database_conn, $sql)) {
-            // echo "Error: " . $sql . "<br>" . mysqli_error($database_conn);
-            $this->errors['auth-error'] = 'Something went wrong!';
-        }
-          
-        mysqli_close($database_conn);
     }
 }
 

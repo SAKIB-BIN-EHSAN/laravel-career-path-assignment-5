@@ -10,7 +10,8 @@ if (!isset($_SESSION['user_id'])) {
   exit;
 } else {
   $errors = [];
-  $currentBalance = getCurrentBalanceOfLoggedInUser();
+  $dbType = require_once '../config/db_type.php';
+  $currentBalance = getCurrentBalanceOfLoggedInUser($dbType);
 
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -21,45 +22,87 @@ if (!isset($_SESSION['user_id'])) {
     $amount = sanitize($_POST['amount']);
 
     if (count($errors) === 0) {
-      // Update the balance information of the user
-      $databaseObj = new DatabaseConnection();
-      $database_conn = $databaseObj->connectToDB();
+      if ($dbType === 'sql') {
+        // Update the balance information of the user
+        $databaseObj = new DatabaseConnection();
+        $database_conn = $databaseObj->connectToDB();
 
-      $email = $_SESSION['useremail'];
-      $sql = "SELECT balance FROM users WHERE email = '$email'";
+        $email = $_SESSION['useremail'];
+        $sql = "SELECT balance FROM users WHERE email = '$email'";
 
-      if (!mysqli_query($database_conn, $sql)) {
-        $this->errors['auth-error'] = 'Something went wrong!';
-      } else {
-        $result = mysqli_query($database_conn, $sql);
-
-        $data = mysqli_fetch_assoc($result);
-        $newBalance = floatval($data['balance']) + $amount;
-
-        $updateSql = "UPDATE users SET balance = $newBalance WHERE email = '$email'";
-
-        if (!mysqli_query($database_conn, $updateSql)) {
+        if (!mysqli_query($database_conn, $sql)) {
           $this->errors['auth-error'] = 'Something went wrong!';
         } else {
-          // Store deposit information into transactions table
-          $senderEmail = $_SESSION['useremail'];
-          $senderName = $_SESSION['username'];
-          $receiverEmail = "Own";
-          $transferAmount = $amount;
-          $transferTime = date('d-M-Y H:i:s');
-          $transferType = "Deposit";
+          $result = mysqli_query($database_conn, $sql);
 
-          $insertSql = "INSERT INTO transactions (sender_email, sender_name, receiver_email, transfer_amount, transfer_time, transfer_type) VALUES ('$senderEmail', '$senderName', '$receiverEmail', '$transferAmount', '$transferTime', '$transferType')";
+          $data = mysqli_fetch_assoc($result);
+          $newBalance = floatval($data['balance']) + $amount;
 
-          if (!mysqli_query($database_conn, $insertSql)) {
+          $updateSql = "UPDATE users SET balance = $newBalance WHERE email = '$email'";
+
+          if (!mysqli_query($database_conn, $updateSql)) {
             $this->errors['auth-error'] = 'Something went wrong!';
           } else {
-            flashMessage('deposit-success', 'The amount deposited successfully.');
-            header('Location:dashboard.php');
-            mysqli_close($database_conn);
-            exit;
+            // Store deposit information into transactions table
+            $senderEmail = $_SESSION['useremail'];
+            $senderName = $_SESSION['username'];
+            $receiverEmail = "Own";
+            $transferAmount = $amount;
+            $transferTime = date('d-M-Y H:i:s');
+            $transferType = "Deposit";
+
+            $insertSql = "INSERT INTO transactions (sender_email, sender_name, receiver_email, transfer_amount, transfer_time, transfer_type) VALUES ('$senderEmail', '$senderName', '$receiverEmail', '$transferAmount', '$transferTime', '$transferType')";
+
+            if (!mysqli_query($database_conn, $insertSql)) {
+              $this->errors['auth-error'] = 'Something went wrong!';
+            } else {
+              flashMessage('deposit-success', 'The amount deposited successfully.');
+              header('Location:dashboard.php');
+              mysqli_close($database_conn);
+              exit;
+            }
           }
         }
+      } else {
+        // Store the deposited amount into correspoding user's account
+        $fileName = '../data/balances.txt';
+        $myFile = fopen($fileName, 'a') or die('Unable to open the file');
+        $balances = file($fileName, FILE_IGNORE_NEW_LINES);
+
+        foreach ($balances as $index => $balance) {
+          $balanceInfo = explode(",", $balance);
+          
+          if ($balanceInfo[1] === $_SESSION['useremail']) {  // check whether current balance info belongs to logged-in user or not
+
+            $newAmount = floatval($amount) + floatval($balanceInfo[2]);  // add provided amount to the current balance
+            $balanceInfo[2] = (string)$newAmount;
+            $balances[$index] = implode(",",$balanceInfo);  // combine the current balance info together and save it into the corresponding index
+
+            $updatedContent = implode(PHP_EOL, $balances);  // add new line to the end of every balance info
+            file_put_contents($fileName, $updatedContent);  // overwrite the file
+            break;
+          }
+        }
+
+        // Store deposit information into transactions table
+        $transactionDataFile = fopen("../data/transactions.txt", "a") or die('Unable to open file!');
+      
+        $senderEmail = $_SESSION['useremail'];
+        $senderName = $_SESSION['username'];
+        $receiverEmail = "Own";
+        $transferAmount = $amount;
+        $transferTime = date('d-M-Y H:i:s');
+        $transferType = "Deposit";
+
+        $transaction = $senderEmail . "," . $senderName . "," . $receiverEmail . "," . $transferType . "," . $transferAmount . "," . $transferTime . PHP_EOL;
+        fwrite($transactionDataFile, $transaction);
+
+        // close the file after finishing the required task
+        fclose($myFile);
+        fclose($transactionDataFile);
+        flashMessage('deposit-success', 'The amount deposited successfully.');
+        header('Location:dashboard.php');
+        exit;
       }
     }
   }

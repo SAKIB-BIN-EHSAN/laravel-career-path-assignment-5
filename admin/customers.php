@@ -13,21 +13,40 @@ if (!isset($_SESSION['user_id'])) {
   header('Location:../login.php');
   exit;
 } else {
-  // Logic for getting all customers
-  $databaseObj = new DatabaseConnection();
-  $database_conn = $databaseObj->connectToDB();
-  $errors = [];
-  
-  $getUsersSql = "SELECT * FROM users WHERE email != 'admin@admin.com'";
-  
-  if (!mysqli_query($database_conn, $getUsersSql)) {
-    $errors['auth-error'] = 'Something went wrong!';
+
+  $dbType = require_once '../config/db_type.php';
+
+  if ($dbType === 'sql') {
+    // Logic for getting all customers
+    $databaseObj = new DatabaseConnection();
+    $database_conn = $databaseObj->connectToDB();
+    $errors = [];
+
+    $getUsersSql = "SELECT * FROM users WHERE email != 'admin@admin.com'";
+
+    if (!mysqli_query($database_conn, $getUsersSql)) {
+      $errors['auth-error'] = 'Something went wrong!';
+    } else {
+      $result = mysqli_query($database_conn, $getUsersSql);
+
+      $allUserData = [];
+      while($row = mysqli_fetch_assoc($result)) {
+        $allUserData[] = $row;
+      }
+    }
   } else {
-    $result = mysqli_query($database_conn, $getUsersSql);
-  
+    // Logic for getting all customers
+    $fileName = '../data/users.txt';
+    $myFile = fopen($fileName, "r") or die('Unable to open file!');
+    $users = file($fileName, FILE_IGNORE_NEW_LINES);
+
     $allUserData = [];
-    while($row = mysqli_fetch_assoc($result)) {
-      $allUserData[] = $row;
+    foreach ($users as $user) {
+      $userInfo = explode(",", $user);
+
+      if ($userInfo[4] === 'Customer') {
+        $allUserData[] = $userInfo;
+      }
     }
   }
 }
@@ -322,41 +341,81 @@ if (!isset($_SESSION['user_id'])) {
 
                     <?php foreach($allUserData as $user) { ?>
 
-                      <li
-                        class="relative flex justify-between px-4 py-5 gap-x-6 hover:bg-gray-50 sm:px-6 lg:px-8">
-                        <div class="flex gap-x-4">
-                          <!-- You can either use image or name initials as avatar -->
-                          <!-- <img
-                            class="flex-none w-12 h-12 rounded-full bg-gray-50"
-                            src="https://avatars.githubusercontent.com/u/61485238"
-                            alt="Al Nahian" /> -->
-                          <span
-                            class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-500">
+                      <?php if ($dbType === 'sql') { ?>
+                        <li
+                          class="relative flex justify-between px-4 py-5 gap-x-6 hover:bg-gray-50 sm:px-6 lg:px-8">
+                          <div class="flex gap-x-4">
+                            <!-- You can either use image or name initials as avatar -->
+                            <!-- <img
+                              class="flex-none w-12 h-12 rounded-full bg-gray-50"
+                              src="https://avatars.githubusercontent.com/u/61485238"
+                              alt="Al Nahian" /> -->
                             <span
-                              class="text-xl font-medium leading-none text-white"
-                              > <?= substr($user[1], 0, 2); ?> </span
-                            >
-                          </span>
-
-                          <div class="flex-auto min-w-0">
-                            <p
-                              class="text-sm font-semibold leading-6 text-gray-900">
-                              <a href="./customer_transactions.php?id=<?= $user['id']; ?>">
-                                <span
-                                  class="absolute inset-x-0 bottom-0 -top-px"></span>
-                                <?= $user['name']; ?>
-                              </a>
-                            </p>
-                            <p class="flex mt-1 text-xs leading-5 text-gray-500">
-                              <a
-                                href="./customer_transactions.php?id=<?= $user[0]; ?>"
-                                class="relative truncate hover:underline"
-                                > <?= $user['email']; ?> </a
+                              class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-500">
+                              <span
+                                class="text-xl font-medium leading-none text-white"
+                                > <?= substr($user['name'], 0, 2); ?> </span
                               >
-                            </p>
+                            </span>
+
+                            <div class="flex-auto min-w-0">
+                              <p
+                                class="text-sm font-semibold leading-6 text-gray-900">
+                                <a href="./customer_transactions.php?id=<?= $user['id']; ?>">
+                                  <span
+                                    class="absolute inset-x-0 bottom-0 -top-px"></span>
+                                  <?= $user['name']; ?>
+                                </a>
+                              </p>
+                              <p class="flex mt-1 text-xs leading-5 text-gray-500">
+                                <a
+                                  href="./customer_transactions.php?id=<?= $user['id']; ?>"
+                                  class="relative truncate hover:underline"
+                                  > <?= $user['email']; ?> </a
+                                >
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </li>
+                        </li>
+                      <?php } ?>
+
+                      <?php if ($dbType === 'file') { ?>
+                        <li
+                          class="relative flex justify-between px-4 py-5 gap-x-6 hover:bg-gray-50 sm:px-6 lg:px-8">
+                          <div class="flex gap-x-4">
+                            <!-- You can either use image or name initials as avatar -->
+                            <!-- <img
+                              class="flex-none w-12 h-12 rounded-full bg-gray-50"
+                              src="https://avatars.githubusercontent.com/u/61485238"
+                              alt="Al Nahian" /> -->
+                            <span
+                              class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-500">
+                              <span
+                                class="text-xl font-medium leading-none text-white"
+                                > <?= substr($user[1], 0, 2); ?> </span
+                              >
+                            </span>
+
+                            <div class="flex-auto min-w-0">
+                              <p
+                                class="text-sm font-semibold leading-6 text-gray-900">
+                                <a href="./customer_transactions.php?id=<?= $user[0]; ?>">
+                                  <span
+                                    class="absolute inset-x-0 bottom-0 -top-px"></span>
+                                  <?= $user[1]; ?>
+                                </a>
+                              </p>
+                              <p class="flex mt-1 text-xs leading-5 text-gray-500">
+                                <a
+                                  href="./customer_transactions.php?id=<?= $user[0]; ?>"
+                                  class="relative truncate hover:underline"
+                                  > <?= $user[2]; ?> </a
+                                >
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      <?php } ?>
 
                      <?php } ?>
 
